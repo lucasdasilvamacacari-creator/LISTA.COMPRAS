@@ -15,8 +15,8 @@
     "test:rules": "vitest run --config vitest.rules.config.ts",
     "test:e2e": "playwright test",
     "icons": "node scripts/generate-icons.mjs",
-    "catalog:validate": "node --experimental-strip-types scripts/validate-catalog.ts",
-    "catalog:report": "node --experimental-strip-types scripts/catalog-report.ts",
+    "catalog:validate": "node scripts/validate-catalog.mjs",
+    "catalog:report": "node scripts/catalog-report.mjs",
     "emulators": "firebase emulators:start --only firestore,auth",
     "deploy": "npm run build && firebase deploy",
     "deploy:rules": "firebase deploy --only firestore:rules"
