@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Neutros (off-white → grafite) */
+    --c-base-0: 255 255 255;
+    --c-base-50: 250 249 247;
+    --c-base-100: 243 242 239;
+    --c-base-200: 231 229 225;
+    --c-base-300: 211 208 203;
+    --c-base-500: 125 123 119;
+    --c-base-700: 71 70 68;
+    --c-base-900: 26 26 25;
+
+    /* Destaque: verde-sálvia */
+    --c-accent-50: 240 246 242;
+    --c-accent-100: 221 234 225;
+    --c-accent-300: 164 193 174;
+    --c-accent-500: 95 138 112;
+    --c-accent-600: 76 114 91;
+    --c-accent-700: 57 88 69;
+
+    --c-danger: 183 76 66;
+    --c-warn: 176 130 48;
+
+    color-scheme: light;
+  }
+
+  [data-theme='dark'] {
+    --c-base-0: 23 25 26;
+    --c-base-50: 28 30 31;
+    --c-base-100: 36 39 40;
+    --c-base-200: 48 52 53;
+    --c-base-300: 72 77 78;
+    --c-base-500: 150 154 155;
+    --c-base-700: 200 203 203;
+    --c-base-900: 240 241 241;
+
+    /* Tons de destaque mais claros no escuro, para manter contraste AA. */
+    --c-accent-50: 30 40 34;
+    --c-accent-100: 38 54 44;
+    --c-accent-300: 108 148 122;
+    --c-accent-500: 150 190 163;
+    --c-accent-600: 173 207 184;
+    --c-accent-700: 198 223 206;
+
+    --c-danger: 228 134 124;
+    --c-warn: 221 182 106;
+
+    color-scheme: dark;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-base-50 text-base-900 font-sans antialiased;
+    margin: 0;
+    overscroll-behavior-y: none;
+  }
+
+  /* Foco sempre visível e consistente (acessibilidade). */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent-500 ring-offset-2 ring-offset-base-50;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Respeita quem pediu menos movimento. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-base-0 border border-base-200 rounded-2xl shadow-soft;
+  }
+
+  /* Alvo de toque mínimo de 44px em qualquer botão de ícone. */
+  .tap {
+    @apply min-h-[44px] min-w-[44px] inline-flex items-center justify-center;
+  }
+
+  .btn {
+    @apply tap rounded-xl px-4 font-medium transition-colors
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent-500 text-base-0 hover:bg-accent-600 active:bg-accent-700;
+  }
+
+  [data-theme='dark'] .btn-primary {
+    @apply text-base-900;
+  }
+
+  .btn-ghost {
+    @apply btn text-base-700 hover:bg-base-100 active:bg-base-200;
+  }
+
+  .btn-outline {
+    @apply btn border border-base-200 bg-base-0 text-base-900 hover:bg-base-100;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-sm font-medium
+           border border-base-200 bg-base-0 text-base-700
+           hover:bg-base-100 active:scale-[0.98] transition whitespace-nowrap;
+  }
+
+  .chip-active {
+    @apply bg-accent-100 border-accent-300 text-accent-700;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-base-200 bg-base-0 px-3.5 py-3
+           placeholder:text-base-500 focus:border-accent-500;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-base-100 rounded-lg;
+  }
+
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgb(var(--c-base-200) / 0.7), transparent);
+    animation: shimmer 1.4s infinite;
+    transform: translateX(-100%);
+  }
+
+  .safe-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+  }
+
+  .safe-top {
+    padding-top: calc(env(safe-area-inset-top, 0px));
+  }
+
+  /* Esconde a barra de rolagem das faixas horizontais de chips. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

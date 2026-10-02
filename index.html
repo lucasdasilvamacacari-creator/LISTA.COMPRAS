@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="auto">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Lista de Mercado da Família</title>
+    <meta
+      name="description"
+      content="Lista de supermercado compartilhada pela família, em tempo real e funcionando offline."
+    />
+
+    <!-- theme-color é atualizado dinamicamente em src/lib/theme.ts -->
+    <meta name="theme-color" content="#faf9f7" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="mask-icon" href="/favicon.svg" color="#5f8a70" />
+
+    <!-- iOS: PWA em tela cheia -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Lista" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Splash screens iOS (geradas por scripts/generate-icons.mjs) -->
+    <link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" href="/icons/splash-1179x2556.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" href="/icons/splash-1170x2532.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" href="/icons/splash-1284x2778.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" href="/icons/splash-1125x2436.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" href="/icons/splash-828x1792.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" href="/icons/splash-1536x2048.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
+
+    <script>
+      // Aplica o tema antes da primeira pintura, para não "piscar" branco no escuro.
+      (function () {
+        try {
+          var saved = localStorage.getItem('lmf:tema');
+          var dark =
+            saved === 'escuro' ||
+            ((!saved || saved === 'auto') &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#17191a' : '#faf9f7');
+        } catch (e) {
+          /* localStorage bloqueado: segue no tema claro */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      Este aplicativo precisa de JavaScript para funcionar. Ative o JavaScript no seu navegador.
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

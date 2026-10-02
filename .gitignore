@@ -1,0 +1,32 @@
+node_modules/
+dist/
+dist-ssr/
+.DS_Store
+*.local
+.env
+.env.*
+!.env.example
+
+# Vite / PWA gerados no build
+dev-dist/
+public/sw.js
+public/workbox-*.js
+
+# Testes
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*-debug.log
+
+# Editores
+.vscode/*
+!.vscode/extensions.json
+.idea/

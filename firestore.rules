@@ -1,0 +1,204 @@
+rules_version = '2';
+
+// =============================================================================
+// Regras do Firestore — Lista de Mercado da Família
+//
+// Modelo de segurança (sem login):
+//   * Só usuário AUTENTICADO (anônimo) escreve ou lê qualquer coisa.
+//   * O id da lista (24 caracteres aleatórios) é a chave de acesso.
+//   * `list` na coleção raiz `lists` é PROIBIDO: ninguém consegue enumerar
+//     as listas de outras famílias, mesmo autenticado. Esta é a regra mais
+//     importante do arquivo — sem ela a aleatoriedade do id não serviria
+//     para nada.
+//   * Dentro de `lists/{listId}/...`, quem tem o id pode ler e escrever,
+//     respeitando validação de tipos, tamanhos e formato do itemId.
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function dados() {
+      return request.resource.data;
+    }
+
+    // Formato do id de lista: 20 a 40 caracteres alfanuméricos.
+    function idListaOk(listId) {
+      return listId.matches('^[A-Za-z0-9]{20,40}$');
+    }
+
+    // Formato do itemId: slug do catálogo ou "p_" + slug do nome.
+    // Impede que alguém use o id do documento para enfiar dados arbitrários.
+    function idItemOk(itemId) {
+      return itemId.size() <= 102
+             && (itemId.matches('^[a-z0-9][a-z0-9-]{0,99}$')
+                 || itemId.matches('^p_[a-z0-9][a-z0-9-]{0,79}$'));
+    }
+
+    function categoriaOk(c) {
+      return c is string && c in [
+        'hortifruti', 'acougue', 'peixaria', 'frios-laticinios', 'padaria',
+        'mercearia', 'matinais-doces', 'biscoitos-snacks', 'bebidas',
+        'congelados', 'saudaveis', 'bebe-infantil', 'higiene', 'limpeza',
+        'descartaveis', 'pet', 'churrasco', 'outros'
+      ];
+    }
+
+    function unidadeOk(u) {
+      return u is string && u in ['un', 'kg', 'g', 'L', 'ml', 'pacote', 'caixa', 'dúzia', 'bandeja'];
+    }
+
+    // Texto curto, opcional, com limite de tamanho.
+    function textoOk(campo, maximo) {
+      return !dados().keys().hasAny([campo])
+             || dados()[campo] == null
+             || (dados()[campo] is string && dados()[campo].size() <= maximo);
+    }
+
+    function numeroOk(campo, minimo, maximo) {
+      return !dados().keys().hasAny([campo])
+             || (dados()[campo] is number && dados()[campo] >= minimo && dados()[campo] <= maximo);
+    }
+
+    function boolOk(campo) {
+      return !dados().keys().hasAny([campo]) || dados()[campo] is bool;
+    }
+
+    // ------------------------------------------------------------------
+    // Documento da lista
+    // ------------------------------------------------------------------
+    match /lists/{listId} {
+
+      // `get` liberado para quem tem o id; `list` NÃO é concedido em nenhum
+      // lugar, portanto consultar a coleção `lists` sempre falha.
+      allow get: if autenticado() && idListaOk(listId);
+
+      allow create: if autenticado()
+                    && idListaOk(listId)
+                    && dados().keys().hasOnly(['name', 'createdAt', 'aisleOrder', 'schemaVersion'])
+                    && dados().name is string
+                    && dados().name.size() > 0
+                    && dados().name.size() <= 60
+                    && dados().aisleOrder is list
+                    && dados().aisleOrder.size() <= 40
+                    && dados().schemaVersion is int
+                    && dados().schemaVersion >= 1;
+
+      allow update: if autenticado()
+                    && idListaOk(listId)
+                    // `createdAt` nunca muda; nenhum campo desconhecido entra.
+                    && dados().diff(resource.data).affectedKeys()
+                         .hasOnly(['name', 'aisleOrder', 'schemaVersion', 'updatedAt'])
+                    && textoOk('name', 60)
+                    && (!dados().keys().hasAny(['aisleOrder'])
+                        || (dados().aisleOrder is list && dados().aisleOrder.size() <= 40));
+
+      // Apagar a lista inteira não é oferecido pelo app (o "esvaziar" apaga
+      // apenas os itens), então a operação fica bloqueada.
+      allow delete: if false;
+
+      // ----------------------------------------------------------------
+      // Itens
+      // ----------------------------------------------------------------
+      match /items/{itemId} {
+
+        function itemValido() {
+          return idItemOk(itemId)
+                 && dados().keys().hasOnly([
+                      'catalogId', 'name', 'category', 'qty', 'unit', 'note',
+                      'checked', 'checkedBy', 'addedBy', 'createdAt', 'updatedAt',
+                      'clientUpdatedAt', 'deleted', 'price'
+                    ])
+                 && textoOk('name', 80)
+                 && textoOk('note', 200)
+                 && textoOk('catalogId', 100)
+                 && textoOk('checkedBy', 40)
+                 && textoOk('addedBy', 40)
+                 && numeroOk('qty', 0, 999)
+                 && numeroOk('price', 0, 100000)
+                 && numeroOk('clientUpdatedAt', 0, 99999999999999)
+                 && boolOk('checked')
+                 && boolOk('deleted')
+                 && (!dados().keys().hasAny(['category']) || categoriaOk(dados().category))
+                 && (!dados().keys().hasAny(['unit']) || unidadeOk(dados().unit));
+        }
+
+        allow get, list: if autenticado() && idListaOk(listId);
+
+        allow create: if autenticado()
+                      && idListaOk(listId)
+                      && itemValido()
+                      && dados().name is string
+                      && dados().name.size() > 0;
+
+        allow update: if autenticado() && idListaOk(listId) && itemValido();
+
+        // Permitido: é assim que a limpeza dos apagados há mais de 30 dias
+        // funciona, feita pelo próprio cliente.
+        allow delete: if autenticado() && idListaOk(listId);
+      }
+
+      // ----------------------------------------------------------------
+      // Produtos criados pela família
+      // ----------------------------------------------------------------
+      match /customProducts/{produtoId} {
+        allow get, list: if autenticado() && idListaOk(listId);
+
+        allow create, update: if autenticado()
+                             && idListaOk(listId)
+                             && produtoId.matches('^[a-z0-9][a-z0-9-]{0,99}$')
+                             && dados().keys().hasOnly([
+                                  'nome', 'categoria', 'subcategoria', 'sinonimos',
+                                  'unidadePadrao', 'criadoPor', 'createdAt'
+                                ])
+                             && dados().nome is string
+                             && dados().nome.size() > 0
+                             && dados().nome.size() <= 80
+                             && categoriaOk(dados().categoria)
+                             && unidadeOk(dados().unidadePadrao)
+                             && (!dados().keys().hasAny(['sinonimos'])
+                                 || (dados().sinonimos is list && dados().sinonimos.size() <= 20))
+                             && textoOk('criadoPor', 40)
+                             && textoOk('subcategoria', 40);
+
+        allow delete: if autenticado() && idListaOk(listId);
+      }
+
+      // ----------------------------------------------------------------
+      // Histórico (alimenta "Comprados com frequência")
+      // ----------------------------------------------------------------
+      match /history/{historicoId} {
+        allow get, list: if autenticado() && idListaOk(listId);
+
+        allow create, update: if autenticado()
+                             && idListaOk(listId)
+                             && idItemOk(historicoId)
+                             && dados().keys().hasOnly([
+                                  'name', 'category', 'catalogId', 'unit',
+                                  'count', 'lastAt', 'clientLastAt'
+                                ])
+                             && textoOk('name', 80)
+                             && textoOk('catalogId', 100)
+                             && numeroOk('count', -1000, 100000)
+                             && numeroOk('clientLastAt', 0, 99999999999999)
+                             && (!dados().keys().hasAny(['category']) || categoriaOk(dados().category))
+                             && (!dados().keys().hasAny(['unit']) || unidadeOk(dados().unit));
+
+        allow delete: if autenticado() && idListaOk(listId);
+      }
+
+      // Qualquer subcoleção não prevista fica fechada.
+      match /{outros=**} {
+        allow read, write: if false;
+      }
+    }
+
+    // Nada mais no banco é acessível.
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}
