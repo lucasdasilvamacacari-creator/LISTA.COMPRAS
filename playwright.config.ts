@@ -14,13 +14,28 @@ export default defineConfig({
     locale: 'pt-BR',
     timezoneId: 'America/Sao_Paulo',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        // PLAYWRIGHT_CHROMIUM_PATH permite usar um Chromium já instalado na
+        // máquina (útil em CI/containers onde a versão baixada pelo Playwright
+        // não casa com a do pacote). Sem a variável, usa o padrão.
+        ...(process.env.PLAYWRIGHT_CHROMIUM_PATH
+          ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } }
+          : {}),
+      },
+    },
+  ],
+  // O build já é feito pelo script `pretest:e2e` (com --mode e2e, que lê o
+  // .env.e2e e aponta para o emulador). Aqui só servimos o dist/.
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: 'npm run build && npm run preview -- --port 4173 --host 127.0.0.1',
+        command: 'npm run preview -- --port 4173 --host 127.0.0.1',
         url: 'http://127.0.0.1:4173',
         reuseExistingServer: !process.env.CI,
-        timeout: 180_000,
+        timeout: 120_000,
       },
 });

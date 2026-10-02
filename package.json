@@ -19,7 +19,9 @@
     "catalog:report": "node scripts/catalog-report.mjs",
     "emulators": "firebase emulators:start --only firestore,auth",
     "deploy": "npm run build && firebase deploy",
-    "deploy:rules": "firebase deploy --only firestore:rules"
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "pretest:e2e": "vite build --mode e2e",
+    "test:all": "npm run lint && npm run build && npm run test"
   },
   "dependencies": {
     "firebase": "^10.14.1",
@@ -46,6 +48,7 @@
     "eslint": "^9.15.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
+    "firebase-tools": "^15.32.1",
     "globals": "^15.12.0",
     "jsdom": "^25.0.1",
     "postcss": "^8.4.49",

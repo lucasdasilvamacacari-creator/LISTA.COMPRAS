@@ -299,10 +299,14 @@ export async function adicionarItem(
     // diferente no cache local, concatenamos em vez de substituir, para não
     // apagar o pedido de outra pessoa ("marca X" + "sem lactose").
     const anterior = estaAtivo ? (estadoAtual?.note ?? '').trim() : '';
-    payload['note'] =
-      anterior && !anterior.toLowerCase().includes(observacao.toLowerCase())
-        ? limparObservacao(`${anterior} / ${observacao}`)
-        : observacao;
+    if (!anterior) {
+      payload['note'] = observacao;
+    } else if (!anterior.toLowerCase().includes(observacao.toLowerCase())) {
+      payload['note'] = limparObservacao(`${anterior} / ${observacao}`);
+    }
+    // Se o pedido já está na observação, não escrevemos nada: reescrever só
+    // para mudar a capitalização do texto de outra pessoa é uma alteração
+    // inútil que ainda pode entrar em conflito com uma edição de verdade.
   }
 
   if (typeof dados.preco === 'number' && Number.isFinite(dados.preco)) {

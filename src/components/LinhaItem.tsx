@@ -35,15 +35,32 @@ export function LinhaItem({ item, mostrarPrecos, onAlternar, onEditar, onRemover
   const opacidadeAcoes = useTransform(x, [-LARGURA_ACOES, -24, 0], [1, 0.35, 0]);
 
   return (
-    <li className="relative overflow-hidden">
-      {/* Ações atrás da linha */}
+    <li
+      className="relative overflow-hidden"
+      onBlur={(evento) => {
+        // Fecha quando o foco sai da linha inteira (e não ao pular de um
+        // botão de ação para o outro).
+        if (!evento.currentTarget.contains(evento.relatedTarget as Node | null)) {
+          setAberto(false);
+          void x.set(0);
+        }
+      }}
+    >
+      {/*
+        Ações atrás da linha.
+
+        Elas NÃO são escondidas de leitores de tela nem retiradas da ordem de
+        tabulação: o swipe é só um atalho visual, e quem usa teclado ou leitor
+        de tela precisa de um caminho real para editar e remover. Receber foco
+        abre a linha, para a ação ficar visível para quem enxerga.
+      */}
       <motion.div
-        style={{ opacity: opacidadeAcoes }}
+        style={{ opacity: aberto ? 1 : opacidadeAcoes }}
         className="absolute inset-y-0 right-0 flex items-stretch"
-        aria-hidden={!aberto}
       >
         <button
           type="button"
+          onFocus={() => setAberto(true)}
           onClick={() => {
             setAberto(false);
             void x.set(0);
@@ -51,12 +68,12 @@ export function LinhaItem({ item, mostrarPrecos, onAlternar, onEditar, onRemover
           }}
           aria-label={`${t.lista.editar}: ${item.name}`}
           className="flex w-14 items-center justify-center bg-base-200 text-base-700"
-          tabIndex={aberto ? 0 : -1}
         >
           <Pencil size={18} aria-hidden="true" />
         </button>
         <button
           type="button"
+          onFocus={() => setAberto(true)}
           onClick={() => {
             setAberto(false);
             void x.set(0);
@@ -64,7 +81,6 @@ export function LinhaItem({ item, mostrarPrecos, onAlternar, onEditar, onRemover
           }}
           aria-label={`${t.lista.remover}: ${item.name}`}
           className="flex w-14 items-center justify-center bg-danger text-white"
-          tabIndex={aberto ? 0 : -1}
         >
           <Trash2 size={18} aria-hidden="true" />
         </button>
