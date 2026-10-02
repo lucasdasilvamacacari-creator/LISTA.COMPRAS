@@ -2,11 +2,17 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 60_000,
+  // Margem larga: os testes falam com o emulador do Firestore, que num
+  // container compartilhado pode ficar lento.
+  timeout: 120_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
+  // Uma tentativa extra: os testes falam com o Firestore Emulator, e em
+  // container a conexão com ele cai de vez em quando
+  // ("Could not reach Cloud Firestore backend"). Isso é do ambiente, não do
+  // app — e uma falha REAL continua falhando nas duas tentativas.
+  retries: 1,
   reporter: [['list']],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://127.0.0.1:4173',

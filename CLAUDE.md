@@ -123,6 +123,24 @@ contém > fuzzy (Levenshtein com limite por tamanho da palavra). Roda em Web
 Worker, com fallback automático para a thread principal. Debounce de 90 ms e
 descarte de respostas fora de ordem.
 
+## Testes de ponta a ponta: o que já custou tempo
+
+- O app só abre **offline** depois de o service worker ASSUMIR O CONTROLE da
+  página. Como usamos `registerType: 'prompt'` sem `clientsClaim`, isso só
+  acontece na navegação seguinte à primeira visita. Testes offline têm de
+  esperar `navigator.serviceWorker.controller !== null` antes de cortar a rede,
+  senão o `goto` dá `ERR_INTERNET_DISCONNECTED`.
+- A URL muda por `history.pushState`, que **não é navegação**: use polling
+  (`toHaveURL`), nunca `waitForURL`.
+- Seletores de item precisam ser escopados a `li`: os chips de "Comprados com
+  frequência" ficam dentro do mesmo `<main>` e repetem o nome do produto.
+- Nomes de produto exigem `exact: true` ("Tomate" casa com seis produtos).
+- `click({ force: true })` em botão coberto por outro elemento clica no
+  elemento de cima. Para as ações da linha, use o caminho de teclado.
+- O emulador acumula estado entre testes: a suíte limpa Firestore e Auth num
+  `beforeEach` via REST. Mesmo assim a conexão com ele cai de vez em quando
+  ("Could not reach Cloud Firestore backend"), por isso `retries: 1`.
+
 ## Pendências conhecidas
 
 - Lighthouse ainda não foi medido em produção (precisa do deploy).

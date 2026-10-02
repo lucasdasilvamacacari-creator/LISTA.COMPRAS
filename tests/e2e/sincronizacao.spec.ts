@@ -14,14 +14,78 @@
  */
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
+/**
+ * Id do projeto usado nos emuladores (precisa bater com o `.env.e2e`).
+ */
+const PROJETO = process.env.E2E_PROJECT_ID ?? 'lista-mercado-regras';
+const EMULADOR_FIRESTORE = process.env.E2E_FIRESTORE_EMULATOR ?? '127.0.0.1:8080';
+const EMULADOR_AUTH = process.env.E2E_AUTH_EMULATOR ?? '127.0.0.1:9099';
+
+/**
+ * Zera os emuladores antes de cada teste.
+ *
+ * Sem isto, os documentos e os usuários anônimos de um teste ficam para o
+ * seguinte. Em uma suíte inteira o emulador acumula estado suficiente para as
+ * escritas começarem a demorar, e os testes falham por tempo esgotado — sem
+ * nenhum problema real no app. Limpar deixa cada teste determinístico.
+ */
+test.beforeEach(async () => {
+  await Promise.all([
+    fetch(
+      `http://${EMULADOR_FIRESTORE}/emulator/v1/projects/${PROJETO}/databases/(default)/documents`,
+      { method: 'DELETE' },
+    ),
+    fetch(`http://${EMULADOR_AUTH}/emulator/v1/projects/${PROJETO}/accounts`, {
+      method: 'DELETE',
+    }),
+  ]).catch(() => {
+    // Sem emulador acessível, os próprios testes falham logo adiante com uma
+    // mensagem melhor do que a daqui.
+  });
+});
+
 /** Dois contextos = dois "aparelhos" com armazenamento e rede independentes. */
 async function abrirAparelho(
   contexto: BrowserContext,
   listId?: string,
 ): Promise<Page> {
   const pagina = await contexto.newPage();
+  // Erros do app aparecem no log do teste — sem isto, uma falha de escrita no
+  // Firestore vira apenas "tempo esgotado" e esconde o motivo.
+  pagina.on('pageerror', (erro) => console.log('[erro na página]', erro.message));
+  pagina.on('console', (msg) => {
+    if (msg.type() === 'error' && !/ERR_CERT|Failed to load resource/.test(msg.text())) {
+      console.log('[console do app]', msg.text());
+    }
+  });
   await pagina.goto(listId ? `/?l=${listId}` : '/');
   return pagina;
+}
+
+/**
+ * Espera o service worker ASSUMIR O CONTROLE da página.
+ *
+ * O app usa `registerType: 'prompt'` com `skipWaiting`/`clientsClaim`
+ * desligados — de propósito, para não recarregar o app embaixo do dedo de quem
+ * está comprando. A consequência é que, na PRIMEIRA visita, o service worker
+ * instala mas não controla a página já carregada: só a próxima navegação passa
+ * por ele. Sem esperar por isso, abrir o app offline dá
+ * ERR_INTERNET_DISCONNECTED, porque não há ninguém para servir o HTML.
+ */
+async function aguardarServiceWorker(pagina: Page): Promise<void> {
+  await pagina.waitForFunction(
+    () => 'serviceWorker' in navigator && navigator.serviceWorker.controller !== null,
+    undefined,
+    { timeout: 30_000 },
+  ).catch(async () => {
+    // Em alguns casos é preciso uma navegação a mais para o SW tomar o controle.
+    await pagina.reload();
+    await pagina.waitForFunction(
+      () => 'serviceWorker' in navigator && navigator.serviceWorker.controller !== null,
+      undefined,
+      { timeout: 30_000 },
+    );
+  });
 }
 
 /** Cria a lista inicial e devolve o id que foi para a URL. */
@@ -29,8 +93,23 @@ async function criarLista(pagina: Page, nome = 'Mercado E2E'): Promise<string> {
   await pagina.getByLabel('Nome da lista').fill(nome);
   await pagina.getByRole('button', { name: 'Criar nova lista' }).click();
 
-  // O id só vai para a URL depois de o servidor confirmar a criação.
-  await expect(pagina).toHaveURL(/\?l=[A-Za-z0-9]{20,40}/, { timeout: 20_000 });
+  // O id só vai para a URL depois de o SERVIDOR confirmar a criação, então
+  // esta espera depende da rede/emulador.
+  //
+  // Precisa ser POLLING: o app troca a URL com history.pushState, que não é uma
+  // navegação — `waitForURL` ficaria esperando um evento de load que nunca vem.
+  // E conferimos o toast de erro a cada volta, para que uma falha real apareça
+  // com o motivo em vez de só esgotar o tempo.
+  const erroDoApp = pagina.getByText(/Não consegui criar a lista|Algo deu errado/);
+  const limite = Date.now() + 45_000;
+  while (Date.now() < limite) {
+    if (/\?l=[A-Za-z0-9]{20,40}/.test(pagina.url())) break;
+    if (await erroDoApp.isVisible().catch(() => false)) {
+      throw new Error(`O app não conseguiu criar a lista: "${await erroDoApp.innerText()}"`);
+    }
+    await pagina.waitForTimeout(200);
+  }
+  await expect(pagina).toHaveURL(/\?l=[A-Za-z0-9]{20,40}/, { timeout: 5000 });
   const url = new URL(pagina.url());
   const id = url.searchParams.get('l');
   if (!id) throw new Error('A lista foi criada sem id na URL.');
@@ -59,14 +138,21 @@ async function adicionarPelaBusca(pagina: Page, texto: string, nomeExato: string
 function quantidadeDoItem(pagina: Page, nome: string, texto: RegExp) {
   return pagina
     .getByRole('main')
+    .locator('li')
     .getByText(nome, { exact: true })
     .locator('xpath=ancestor::li[1]')
     .getByText(texto);
 }
 
+/**
+ * O item na lista propriamente dita.
+ *
+ * O escopo em `li` é necessário: os chips de "Comprados com frequência" também
+ * ficam dentro do <main> e trazem o mesmo nome, então um seletor mais largo
+ * acusaria o item como presente depois de ele já ter saído da lista.
+ */
 function itemNaLista(pagina: Page, nome: string) {
-  // O nome aparece dentro do grupo da categoria, na lista principal.
-  return pagina.getByRole('main').getByText(nome, { exact: true });
+  return pagina.getByRole('main').locator('li').getByText(nome, { exact: true });
 }
 
 test.describe('sincronização em tempo real', () => {
@@ -198,6 +284,9 @@ test.describe('cenário offline', () => {
       await adicionarPelaBusca(pagina, 'leite integral', 'Leite integral');
       await expect(itemNaLista(pagina, 'Leite integral')).toBeVisible();
 
+      // O app só abre offline depois de o service worker assumir o controle.
+      await aguardarServiceWorker(pagina);
+
       // Fica offline e recarrega: o app tem de abrir normalmente.
       await contexto.setOffline(true);
       await pagina.goto(`/?l=${listId}`);
@@ -310,6 +399,45 @@ test.describe('fluxo básico', () => {
     }
   });
 
+  test('re-adicionar um frequente reusa o item do catálogo, sem duplicar', async ({ browser }) => {
+    // Regressão: "Comprados com frequência" adicionava só pelo NOME, gerando
+    // um itemId `p_<slug>` paralelo ao do catálogo — a duplicação que o itemId
+    // determinístico existe para evitar.
+    const contexto = await browser.newContext();
+    try {
+      const pagina = await contexto.newPage();
+      // "Limpar comprados" pede confirmação; sem um ouvinte, o Playwright
+      // DISPENSA o diálogo e a ação não acontece.
+      pagina.on('dialog', (dialogo) => void dialogo.accept());
+      pagina.on('console', (msg) => {
+        if (msg.type() === 'error') console.log('[console do app]', msg.text());
+      });
+      await pagina.goto('/');
+      await criarLista(pagina);
+
+      // Compra o item e limpa os comprados, para ele entrar no histórico.
+      await adicionarPelaBusca(pagina, 'leite integral', 'Leite integral');
+      await pagina
+        .getByRole('checkbox', { name: 'Marcar como comprado: Leite integral' })
+        .click();
+
+      await pagina.getByRole('button', { name: 'Limpar comprados' }).click();
+      await expect(itemNaLista(pagina, 'Leite integral')).toHaveCount(0, { timeout: 15_000 });
+
+      // Agora ele aparece como frequente; um toque devolve para a lista.
+      const chipFrequente = pagina.getByRole('button', {
+        name: 'Adicionar de novo: Leite integral',
+      });
+      await expect(chipFrequente).toBeVisible({ timeout: 15_000 });
+      await chipFrequente.click();
+
+      // Voltou UMA vez só — e não um item do catálogo mais um personalizado.
+      await expect(itemNaLista(pagina, 'Leite integral')).toHaveCount(1, { timeout: 15_000 });
+    } finally {
+      await contexto.close();
+    }
+  });
+
   test('link inexistente mostra "Lista não encontrada", sem criar lista', async ({ browser }) => {
     const contexto = await browser.newContext();
     try {
@@ -338,9 +466,14 @@ test.describe('fluxo básico', () => {
       const botaoRemover = pagina.getByRole('button', { name: 'Remover: Tomate', exact: true });
       await botaoRemover.focus();
       await botaoRemover.press('Enter');
-      await expect(itemNaLista(pagina, 'Tomate')).toHaveCount(0, { timeout: 10_000 });
 
-      await pagina.getByRole('button', { name: 'Desfazer' }).click();
+      // O toast com "Desfazer" dura 6 s, então o pegamos antes de gastar tempo
+      // em outras asserções.
+      const desfazer = pagina.getByRole('button', { name: 'Desfazer' });
+      await expect(desfazer).toBeVisible({ timeout: 5000 });
+      await expect(itemNaLista(pagina, 'Tomate')).toHaveCount(0, { timeout: 3000 });
+
+      await desfazer.click();
       await expect(itemNaLista(pagina, 'Tomate')).toBeVisible({ timeout: 10_000 });
     } finally {
       await contexto.close();

@@ -78,7 +78,13 @@ import {
   type PreferenciaTema,
 } from '@/lib/armazenamentoLocal';
 import { t } from '@/i18n';
-import { MAX_ITENS_ATIVOS, type CategoriaId, type Item, type Produto } from '@/types';
+import {
+  MAX_ITENS_ATIVOS,
+  type CategoriaId,
+  type HistoricoItem,
+  type Item,
+  type Produto,
+} from '@/types';
 
 type Aba = 'lista' | 'explorar';
 type Painel = null | 'compartilhar' | 'ajustes' | 'listas' | 'privacidade';
@@ -341,6 +347,29 @@ export default function App(): JSX.Element {
     }
   }, [listId, ativos, mostrar, mostrarErro]);
 
+  /**
+   * Re-adiciona um item vindo de "Comprados com frequência".
+   *
+   * Se ele era um produto do CATÁLOGO, precisamos adicioná-lo como produto, e
+   * não só pelo nome: adicionar pelo nome geraria um itemId `p_<slug>` e
+   * criaria um documento paralelo ao do catálogo — exatamente a duplicação que
+   * o itemId determinístico existe para evitar.
+   */
+  const readicionarFrequente = useCallback(
+    async (h: HistoricoItem): Promise<void> => {
+      if (h.catalogId) {
+        const produto = await busca.obterProduto(h.catalogId);
+        if (produto) {
+          await adicionar({ produto, unidade: h.unit });
+          return;
+        }
+        // Produto saiu do catálogo numa versão nova: cai para o nome.
+      }
+      await adicionar({ nome: h.name, categoria: h.category, unidade: h.unit });
+    },
+    [busca, adicionar],
+  );
+
   const criarPersonalizado = useCallback(
     async (texto: string): Promise<void> => {
       if (!listId) return;
@@ -560,13 +589,7 @@ export default function App(): JSX.Element {
               <Frequentes
                 historico={historico}
                 naLista={idsNaLista}
-                onAdicionar={(h) =>
-                  void adicionar({
-                    nome: h.name,
-                    categoria: h.category,
-                    unidade: h.unit,
-                  })
-                }
+                onAdicionar={(h) => void readicionarFrequente(h)}
               />
             )}
 

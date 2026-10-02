@@ -251,6 +251,11 @@ npm run test:e2e      # 8 testes Playwright (2 navegadores + offline)
 > recarregar as regras sozinho). Confira com
 > `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9099/` — se não
 > responder `200`, encerre e rode `npm run emulators` de novo.
+>
+> Um teste de ponta a ponta marcado como **flaky** (passou na segunda
+> tentativa) quase sempre é a conexão com o emulador caindo por um instante
+> — a mensagem no console é *"Could not reach Cloud Firestore backend"*. Uma
+> falha de verdade erra nas duas tentativas.
 
 O que está coberto:
 
