@@ -5,32 +5,11 @@
  * passa por aqui com um "Desfazer" — é mais rápido do que perguntar
  * "tem certeza?" para cada toque.
  */
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { t } from '@/i18n';
-
-export interface Toast {
-  id: number;
-  texto: string;
-  /** Rótulo e ação do botão de desfazer. */
-  desfazer?: () => void | Promise<void>;
-  duracaoMs?: number;
-  tom?: 'normal' | 'erro';
-}
-
-interface ContextoToast {
-  mostrar: (toast: Omit<Toast, 'id'>) => void;
-  erro: (texto: string) => void;
-}
-
-const Contexto = createContext<ContextoToast | null>(null);
-
-export function useToast(): ContextoToast {
-  const contexto = useContext(Contexto);
-  if (!contexto) throw new Error('useToast precisa estar dentro de <ProvedorToast>.');
-  return contexto;
-}
+import { ContextoToast, type Toast } from '@/hooks/useToast';
 
 export function ProvedorToast({ children }: { children: React.ReactNode }): JSX.Element {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -64,7 +43,7 @@ export function ProvedorToast({ children }: { children: React.ReactNode }): JSX.
   const valor = useMemo(() => ({ mostrar, erro }), [mostrar, erro]);
 
   return (
-    <Contexto.Provider value={valor}>
+    <ContextoToast.Provider value={valor}>
       {children}
       <div
         className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex flex-col items-center gap-2 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
@@ -113,6 +92,6 @@ export function ProvedorToast({ children }: { children: React.ReactNode }): JSX.
           ))}
         </AnimatePresence>
       </div>
-    </Contexto.Provider>
+    </ContextoToast.Provider>
   );
 }

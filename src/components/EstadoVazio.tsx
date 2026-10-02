@@ -1,6 +1,9 @@
 /** Estado vazio: ilustração simples, uma frase que explica e uma ação. */
+import type { LucideIcon } from 'lucide-react';
+
 interface Props {
-  Icone: React.ComponentType<{ size?: number; className?: string; 'aria-hidden'?: boolean }>;
+  /** Um ícone do lucide-react. */
+  Icone: LucideIcon;
   titulo: string;
   texto?: string;
   acao?: { rotulo: string; onClick: () => void };
