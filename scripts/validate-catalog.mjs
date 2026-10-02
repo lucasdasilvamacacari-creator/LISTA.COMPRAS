@@ -107,6 +107,14 @@ async function main() {
         }
       }
 
+      // --- nenhum campo fora do formato previsto ---
+      const CAMPOS = ['id', 'nome', 'categoria', 'subcategoria', 'sinonimos', 'unidadePadrao', 'emoji'];
+      for (const campo of Object.keys(p)) {
+        if (!CAMPOS.includes(campo)) {
+          erro(`${onde} (${p.nome}): campo desconhecido "${campo}". Permitidos: ${CAMPOS.join(', ')}.`);
+        }
+      }
+
       // --- campos opcionais ---
       if (p.subcategoria !== undefined && typeof p.subcategoria !== 'string') {
         erro(`${onde}: "subcategoria" deve ser texto.`);
