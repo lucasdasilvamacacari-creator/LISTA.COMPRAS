@@ -134,7 +134,7 @@ export function Compartilhar({ listId, nomeLista, url }: Props): JSX.Element {
               alt={t.compartilhar.qrAlt}
               width={200}
               height={200}
-              className="h-50 w-50 rounded-xl"
+              className="h-[200px] w-[200px] rounded-xl"
               style={{ imageRendering: 'pixelated' }}
             />
           ) : (

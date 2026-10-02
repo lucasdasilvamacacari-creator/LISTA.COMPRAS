@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MotorBusca, produtoDaFamilia } from '@/lib/busca';
+import { PREFIXO_PERSONALIZADO } from '@/lib/ids';
 import { carregarCatalogo } from '@/data/catalog';
 import type { PedidoWorker, RespostaWorker } from '@/workers/busca.worker';
 import type { Produto, ProdutoPersonalizado, ResultadoBusca } from '@/types';
@@ -114,8 +115,12 @@ export function useCatalogSearch(
 
   useEffect(() => {
     if (!pronto || personalizados.length === 0) return;
+    // O id precisa ser EXATAMENTE o que vira o itemId no Firestore
+    // (`p_` + slug). Com um prefixo diferente, re-adicionar um item
+    // personalizado pela busca criaria outro documento — e seria recusado
+    // pelas regras, que só aceitam `^[a-z0-9-]+$` ou `^p_[a-z0-9-]+$`.
     const itens = personalizados.map((p) => ({
-      id: `familia:${p.id}`,
+      id: `${PREFIXO_PERSONALIZADO}${p.id}`,
       nome: p.nome,
       categoria: p.categoria,
       unidadePadrao: p.unidadePadrao,

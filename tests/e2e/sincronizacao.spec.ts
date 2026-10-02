@@ -52,6 +52,18 @@ async function adicionarPelaBusca(pagina: Page, texto: string, nomeExato: string
   await busca.fill('');
 }
 
+/**
+ * A quantidade aparece como "2" + <span>un</span>, então o textContent fica
+ * "2un" (sem espaço). O \s* do regex cobre as duas formas.
+ */
+function quantidadeDoItem(pagina: Page, nome: string, texto: RegExp) {
+  return pagina
+    .getByRole('main')
+    .getByText(nome, { exact: true })
+    .locator('xpath=ancestor::li[1]')
+    .getByText(texto);
+}
+
 function itemNaLista(pagina: Page, nome: string) {
   // O nome aparece dentro do grupo da categoria, na lista principal.
   return pagina.getByRole('main').getByText(nome, { exact: true });
@@ -168,12 +180,9 @@ test.describe('cenário offline', () => {
       }
 
       // A quantidade SOMOU as duas adições offline (increment, não sobrescrita).
-      const quantidadeLeite = aparelhoA
-        .getByRole('main')
-        .getByText('Leite integral', { exact: true })
-        .locator('xpath=ancestor::li[1]')
-        .getByText(/^2\s*(un|L)$/);
-      await expect(quantidadeLeite).toBeVisible({ timeout: 10_000 });
+      await expect(
+        quantidadeDoItem(aparelhoA, 'Leite integral', /^2\s*(un|L)$/),
+      ).toBeVisible({ timeout: 10_000 });
     } finally {
       await contextoA.close();
       await contextoB.close();
@@ -243,6 +252,59 @@ test.describe('fluxo básico', () => {
       await expect(
         pagina.getByText('Já está na lista, aumentei a quantidade (+1)'),
       ).toBeVisible({ timeout: 10_000 });
+    } finally {
+      await contexto.close();
+    }
+  });
+
+  test('item personalizado removido revive do zero ao ser adicionado de novo', async ({
+    browser,
+  }) => {
+    // Regressão: o app procurava o documento do item personalizado por um id
+    // diferente do que o listRepo grava ("p_item de teste" em vez de
+    // "p_item-de-teste"), então o revive não acontecia e a quantidade antiga
+    // voltava junto.
+    const contexto = await browser.newContext();
+    try {
+      const pagina = await abrirAparelho(contexto);
+      await criarLista(pagina);
+
+      const busca = pagina.getByRole('searchbox', { name: 'Buscar produto' });
+
+      // Cria um item fora do catálogo com 1 unidade e aumenta para 3.
+      await busca.fill('Tempero da vovó');
+      await pagina.getByRole('button', { name: /Adicionar “Tempero da vovó”/ }).click();
+      await expect(itemNaLista(pagina, 'Tempero da vovó')).toBeVisible({ timeout: 15_000 });
+
+      await busca.fill('Tempero da vovó');
+      await pagina
+        .getByRole('button', { name: 'Adicionar direto: Tempero da vovó', exact: true })
+        .click();
+      await busca.fill('');
+      await expect(quantidadeDoItem(pagina, 'Tempero da vovó', /^2\s*un$/)).toBeVisible({
+        timeout: 10_000,
+      });
+
+      // Remove e adiciona de novo.
+      const botaoRemover = pagina.getByRole('button', {
+        name: 'Remover: Tempero da vovó',
+        exact: true,
+      });
+      await botaoRemover.focus();
+      await botaoRemover.press('Enter');
+      await expect(itemNaLista(pagina, 'Tempero da vovó')).toHaveCount(0, { timeout: 10_000 });
+
+      await busca.fill('Tempero da vovó');
+      await pagina
+        .getByRole('button', { name: 'Adicionar direto: Tempero da vovó', exact: true })
+        .click();
+      await busca.fill('');
+
+      // Volta com 1, não com 3: o revive recomeça do zero.
+      await expect(itemNaLista(pagina, 'Tempero da vovó')).toBeVisible({ timeout: 10_000 });
+      await expect(quantidadeDoItem(pagina, 'Tempero da vovó', /^1\s*un$/)).toBeVisible({
+        timeout: 10_000,
+      });
     } finally {
       await contexto.close();
     }

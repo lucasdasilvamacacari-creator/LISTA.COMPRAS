@@ -64,6 +64,7 @@ import { garantirLogin, pedirArmazenamentoPersistente } from '@/lib/firebase';
 import { listaComoTexto, totalEstimado } from '@/lib/exportar';
 import { copiar, urlWhatsApp, vibrar } from '@/lib/dispositivo';
 import { separarItensFalados } from '@/lib/texto';
+import { itemIdDoCatalogo, itemIdPersonalizado } from '@/lib/ids';
 import {
   definirCategoriasRecolhidas,
   definirMostrarPrecos,
@@ -205,8 +206,24 @@ export default function App(): JSX.Element {
       preco?: number;
     }): Promise<void> => {
       if (!listId) return;
-      const itemId = dados.produto ? dados.produto.id : null;
-      const existente = itemId ? acharDocumento(itemId) : null;
+
+      // O itemId tem de ser calculado do MESMO jeito que o listRepo calcula,
+      // senão não encontramos o documento existente e o revive de um item
+      // apagado/comprado não acontece (ele voltaria com a quantidade antiga).
+      let itemId: string | null = null;
+      if (dados.produto) {
+        itemId = itemIdDoCatalogo(dados.produto.id);
+      } else if (dados.nome?.trim()) {
+        try {
+          itemId = itemIdPersonalizado(dados.nome);
+        } catch {
+          mostrarErro(t.erro.generico);
+          return;
+        }
+      }
+      if (!itemId) return;
+
+      const existente = acharDocumento(itemId);
 
       // O limite só bloqueia item NOVO: aumentar quantidade sempre é permitido.
       const ehNovo = !existente || existente.deleted || existente.checked;
@@ -228,7 +245,7 @@ export default function App(): JSX.Element {
             qtd: dados.qtd ?? 1,
             autor: nomeUsuario || null,
           },
-          dados.produto ? existente : acharDocumento(`p_${(dados.nome ?? '').toLowerCase()}`),
+          existente,
         );
 
         vibrar(14);

@@ -75,3 +75,18 @@ describe('itemId determinístico', () => {
     expect(historicoIdDeItem('leite-integral')).toBe('leite-integral');
   });
 });
+
+describe('ids de produto da família passam pelas regras do Firestore', () => {
+  it('o prefixo usado na busca é o MESMO que vira o itemId', () => {
+    // Regressão: a busca indexava produtos da família como "familia:slug".
+    // Esse id tem dois-pontos, que as regras do Firestore REJEITAM — então
+    // re-adicionar um item personalizado pela busca falhava em produção, e
+    // ainda apontava para um documento diferente do criado originalmente.
+    const slugDoProduto = 'tempero-da-vovo';
+    const idIndexado = `${PREFIXO_PERSONALIZADO}${slugDoProduto}`;
+
+    expect(idIndexado).toBe(itemIdPersonalizado('Tempero da vovó'));
+    expect(itemIdValido(idIndexado)).toBe(true);
+    expect(itemIdValido(`familia:${slugDoProduto}`)).toBe(false);
+  });
+});

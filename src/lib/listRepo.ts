@@ -35,7 +35,7 @@ import {
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { obterDb } from './firebase';
-import { itemIdPersonalizado, itemIdDoCatalogo } from './ids';
+import { itemIdPersonalizado, itemIdDoCatalogo, PREFIXO_PERSONALIZADO } from './ids';
 import { capitalizar, slug } from './texto';
 import {
   SCHEMA_VERSION,
@@ -256,8 +256,13 @@ export async function adicionarItem(
   // Reviver: o documento existe mas está apagado ou já foi comprado.
   const vaiReviver = !!estadoAtual && (estadoAtual.deleted || estadoAtual.checked);
 
+  // Um produto criado pela família chega aqui com o id já prefixado por `p_`
+  // (veja useCatalogSearch). Ele NÃO é um produto de catálogo, então
+  // `catalogId` continua nulo.
+  const ehDoCatalogo = !!produto && !produto.id.startsWith(PREFIXO_PERSONALIZADO);
+
   const base: Record<string, unknown> = {
-    catalogId: produto ? produto.id : null,
+    catalogId: ehDoCatalogo ? (produto as Produto).id : null,
     name: nome,
     category: produto?.categoria ?? dados.categoria ?? 'outros',
     unit: dados.unidade ?? produto?.unidadePadrao ?? 'un',
