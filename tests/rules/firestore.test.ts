@@ -438,6 +438,55 @@ describe('histórico', () => {
 });
 
 // ===========================================================================
+// Notificações push (recurso opcional)
+// ===========================================================================
+
+describe('tokens de push são write-only', () => {
+  it('o aparelho registra o próprio token', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(anonimo(), 'lists', LISTA, '_notificacoes', 'tokens'),
+        { tokens: { 'token-abc': 'anon-1' } },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('NINGUÉM consegue ler a lista de tokens', async () => {
+    // Registrar o próprio token é uma coisa; poder ler os tokens dos outros
+    // aparelhos da família seria outra bem diferente.
+    await ambiente.withSecurityRulesDisabled(async (contexto) => {
+      const db = contexto.firestore() as unknown as Firestore;
+      await setDoc(doc(db, 'lists', LISTA, '_notificacoes', 'tokens'), {
+        tokens: { 'token-abc': 'anon-1' },
+      });
+    });
+    await assertFails(getDoc(doc(anonimo(), 'lists', LISTA, '_notificacoes', 'tokens')));
+  });
+
+  it('o cliente não escreve no documento de pendências (é só da Cloud Function)', async () => {
+    await assertFails(
+      setDoc(doc(anonimo(), 'lists', LISTA, '_notificacoes', 'pendente'), { nomes: ['x'] }),
+    );
+  });
+
+  it('recusa campo desconhecido e mapa gigante', async () => {
+    const db = anonimo();
+    await assertFails(
+      setDoc(doc(db, 'lists', LISTA, '_notificacoes', 'tokens'), {
+        tokens: { a: 'b' },
+        extra: 1,
+      }),
+    );
+    const muitos: Record<string, string> = {};
+    for (let i = 0; i < 60; i++) muitos[`token-${i}`] = 'anon';
+    await assertFails(
+      setDoc(doc(db, 'lists', LISTA, '_notificacoes', 'tokens'), { tokens: muitos }),
+    );
+  });
+});
+
+// ===========================================================================
 // Nada fora do modelo previsto
 // ===========================================================================
 

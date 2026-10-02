@@ -190,6 +190,24 @@ service cloud.firestore {
         allow delete: if autenticado() && idListaOk(listId);
       }
 
+      // ----------------------------------------------------------------
+      // Notificações push (RECURSO OPCIONAL — veja functions/README.md)
+      //
+      // Só o documento de tokens é escrito pelo cliente, e ele é WRITE-ONLY:
+      // um aparelho registra o próprio token, mas ninguém consegue LER a lista
+      // de tokens dos outros. O documento `pendente` é escrito apenas pela
+      // Cloud Function (que usa o Admin SDK e não passa por estas regras).
+      // ----------------------------------------------------------------
+      match /_notificacoes/{documento} {
+        allow read: if false;
+        allow write: if autenticado()
+                     && idListaOk(listId)
+                     && documento == 'tokens'
+                     && dados().keys().hasOnly(['tokens'])
+                     && dados().tokens is map
+                     && dados().tokens.size() <= 50;
+      }
+
       // Qualquer subcoleção não prevista fica fechada.
       match /{outros=**} {
         allow read, write: if false;
